@@ -1,0 +1,11 @@
+{
+  "data_flag": "breastmnist",
+  "selection_method": "clusteringmoso",
+  "batch_size": 16,
+  "learning_rate": 0.01,
+  "num_epochs": 100,
+  "num_pretrain_epochs": 50,
+  "model_name": "ResNet50",
+  "model_weights": "ResNet50_Weights.DEFAULT",
+  "outdir": "/transfer_resnet50"
+}

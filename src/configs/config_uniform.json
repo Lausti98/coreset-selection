@@ -1,0 +1,9 @@
+{
+  "data_flag": "breastmnist",
+  "selection_method": "uniform",
+  "batch_size": 16,
+  "learning_rate": 0.01,
+  "num_epochs": 100,
+  "model_name": "ResNet18",
+  "model_weights": "ResNet18_Weights.IMAGENET1K_V1"
+}
