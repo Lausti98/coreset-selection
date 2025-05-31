@@ -28,3 +28,4 @@ torchvision==0.17.2
 tqdm==4.67.1
 typing_extensions==4.12.2
 tzdata==2025.1
+opencv-python==4.11.0.86
