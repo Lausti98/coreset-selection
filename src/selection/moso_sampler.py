@@ -1,21 +1,11 @@
+import sys
+
 import torch
-# import pytorch_influence_functions as ptif
-# from torchvision.models import resnet18, ResNet18_Weights
-from torchvision.models import get_model, get_weight
-from torchvision.transforms import transforms
-import medmnist
-# from medmnist import BreastMNIST
-# from medmnist import Evaluator
-from medmnist.evaluator import getACC, getAUC
-from medmnist import INFO
 import torch.utils.data as data
 import torch.nn as nn
 import numpy as np
 import copy
 from torch.autograd import grad
-from itertools import chain
-
-import sys
 
 from src.utils.config import Config
 from src.model.evaluation import evaluate
@@ -23,21 +13,22 @@ from src.model.loader import get_my_model
 from src.dataset.loader import get_my_dataloaders, load_dataset
 from src.utils.helper import save_coreset, save_scores
 
+
 def moso_scoring(net, dataloader, criterion, lr):
     config = Config.get_config()
     device = config['device']
     task = config['task']
     model = copy.deepcopy(net)
     new_dataloader = data.DataLoader( # Create a dataloader with batch_size 1 to get individual sample scores
-      dataset=dataloader.dataset,  # Reuse the same dataset
-      batch_size=1,                # Set batch size to 1
+      dataset=dataloader.dataset,
+      batch_size=1,              
       num_workers=dataloader.num_workers,
       pin_memory=dataloader.pin_memory,
       drop_last=False  # Ensure all samples are included
     )
     model.eval()
     overall_grad = 0
-    M = 0
+
     params = [ p for p in model.parameters() if p.requires_grad ]
     for i, (inputs, labels) in enumerate(new_dataloader):
         inputs = inputs.to(device)
@@ -69,7 +60,7 @@ def moso_scoring(net, dataloader, criterion, lr):
         g = torch.nn.utils.parameters_to_vector(g)
         g = g.detach()
         score = ((overall_grad - (1/N * g)) * g).sum() * lr
-        score = score.detach().cpu()#.numpy()
+        score = score.detach().cpu()
         score_list.append(score)
 
     score_list = torch.tensor(score_list).detach()
@@ -81,7 +72,6 @@ def train(model, trainloader, val_loader, optimizer, criterion, num_epochs, trai
     task = config['task']
     model.to(device)
     training_losses = []
-    training_accuracies = []
     validation_losses = []
     validation_accuracies = []
     ### MoSo - instead of random selection of epochs, select epochs at
@@ -89,16 +79,12 @@ def train(model, trainloader, val_loader, optimizer, criterion, num_epochs, trai
     moso_scores = torch.zeros(len(trainloader.dataset))
     num_scoring_epochs = int(num_epochs * 0.2)
     scoring_stride = num_epochs//num_scoring_epochs
-    print(f'{num_scoring_epochs=}')
-    print(f'{scoring_stride=}')
+
     scoring_epochs = np.arange(scoring_stride, num_epochs, scoring_stride)
-    print(f'{scoring_epochs=}')
 
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
-        correct = 0
-        total = 0
 
         for i, (inputs, labels) in enumerate(trainloader):
             inputs, labels = inputs.to(device), labels.to(device)
@@ -121,7 +107,7 @@ def train(model, trainloader, val_loader, optimizer, criterion, num_epochs, trai
         ### MoSo scoring
         if epoch in scoring_epochs:
           v_scores = moso_scoring(model, trainloader, criterion, config['learning_rate'])
-          moso_scores = moso_scores + v_scores # torch.cat((moso_scores, v_scores), 0)
+          moso_scores = moso_scores + v_scores
         val_evals = evaluate(model, val_loader, criterion, 'val')
         val_loss = val_evals[0]
         val_acc = val_evals[2]
@@ -130,8 +116,6 @@ def train(model, trainloader, val_loader, optimizer, criterion, num_epochs, trai
 
         print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {running_loss/len(trainloader):.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}')
 
-    print(f'{moso_scores=}')
-    print(f'{len(moso_scores)=}')
     return model, moso_scores
 
 
@@ -140,7 +124,7 @@ def pretrain(indices=None, fraction=None, iterations=1):
   task = config['task']
   batch_size = config['batch_size']
   train_data, validation_data, test_data = load_dataset()
-  trainloader, validationloader, testloader = get_my_dataloaders(train_data, validation_data, test_data)
+  trainloader, validationloader, _ = get_my_dataloaders(train_data, validation_data, test_data)
 
   train_data_permutation = torch.randperm(len(train_data))
 
@@ -167,25 +151,24 @@ def pretrain(indices=None, fraction=None, iterations=1):
 
 
 def sample(model, dataset, train_idx, moso_scores, n_samples=None, fraction=None):
-  print(fraction)
   train_idx_flat = np.array([int(x) for sublist in train_idx for x in sublist])
   if fraction is not None:
     n_samples = int(len(dataset) * fraction)
 
-  indices = train_idx_flat[np.argsort(moso_scores)][::-1][:n_samples]# moso(model, optimizer, criterion, dataset, train_idx, n_samples)
+  indices = train_idx_flat[np.argsort(moso_scores)][::-1][:n_samples]
   return [int(idx) for idx in indices]
-  # indices = torch.randperm(len(dataset)).numpy()[:n_samples]
-  # data.Subset(dataset, indices)
 
-  # return [int(idx) for idx in indices]
 
 def main():
   config = Config.get_config()
-  train_data, val_data, test_data = load_dataset()
+  train_data, _, _ = load_dataset()
   assert torch.cuda.is_available() == True, "No GPUS allocated to run-time. Exiting.." ## Sometimes Slurm doesn't provide GPU
   res_indices = {}
   fracions = [0.01, 0.1, 0.2, 0.4, 0.6, 0.8]
-  model, optimizer, criterion, train_idx, moso_scores = pretrain()
+  if 'tissue' in config['data_flag']:
+     fracions = [0.001, 0.005, 0.01, 0.1, 0.2, 0.4, 0.6, 0.8]
+
+  model, _, _, train_idx, moso_scores = pretrain()
   save_scores(config, config['selection_method'], moso_scores)
   for frac in fracions:
     res_indices[frac] = sample(model, train_data, train_idx, moso_scores, fraction=frac)

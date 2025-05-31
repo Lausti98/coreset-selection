@@ -21,7 +21,6 @@ def train(model, trainloader, val_loader, optimizer, criterion, num_epochs, trai
     task = config['task']
     model.to(device)
     training_losses = []
-    training_accuracies = []
     validation_losses = []
     validation_accuracies = []
 
@@ -33,8 +32,6 @@ def train(model, trainloader, val_loader, optimizer, criterion, num_epochs, trai
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
-        correct = 0
-        total = 0
 
         for i, (inputs, labels) in enumerate(trainloader):
             inputs, labels = inputs.to(device), labels.to(device)
@@ -56,7 +53,6 @@ def train(model, trainloader, val_loader, optimizer, criterion, num_epochs, trai
             # We increment the foregetting events by one on the samples in this batch.
             # if not isinstance(outputs, torch.Tensor):
             outputs = torch.tensor([outputs]).view(-1).to(device)
-            # if not isinstance(labels, torch.Tensor):
             labels = torch.tensor([labels]).view(-1).to(device)
             _, acc = evaluation_func(outputs, labels, None)
             cur_acc = torch.tensor(acc).to(device)
@@ -107,15 +103,13 @@ def pretrain(indices=None, fraction=None, iterations=1):
 
 def forgetting(train_idx, forgetting_events, budget: int, index=None):
   """
-  Source: https://github.com/PatrickZH/DeepCore/blob/main/deepcore/methods/herding.py
+  Source: https://github.com/PatrickZH/DeepCore/blob/main/deepcore/methods/forgetting.py
   """
   train_idx_flat = np.array([int(x) for sublist in train_idx for x in sublist])
-  sorted_indices = np.argsort(forgetting_events.cpu().numpy())[::-1]
   top_examples = train_idx_flat[np.argsort(forgetting_events.cpu().numpy())][::-1][:budget]
   return top_examples
 
 def sample(dataset, train_idx, forgetting_events, n_samples=None, fraction=None):
-  print(fraction)
   if fraction is not None:
     n_samples = int(len(dataset) * fraction)
 
@@ -125,10 +119,13 @@ def sample(dataset, train_idx, forgetting_events, n_samples=None, fraction=None)
 
 def main():
   config = Config.get_config()
-  train_data, val_data, test_data = load_dataset()
+  train_data, _, _ = load_dataset()
   assert torch.cuda.is_available() == True, "No GPUS allocated to run-time. Exiting.." ## Sometimes Slurm doesn't provide GPU
   res_indices = {}
-  fracions = [0.1, 0.2, 0.4, 0.6, 0.8]
+  fracions = [0.01, 0.1, 0.2, 0.4, 0.6, 0.8]
+  if 'tissue' in config['data_flag']:
+     fracions = [0.001, 0.005, 0.01, 0.1, 0.2, 0.4, 0.6, 0.8]
+
   forgetting_events, train_idx = pretrain()
   for frac in fracions:
     res_indices[frac] = sample(train_data, train_idx, forgetting_events, fraction=frac)

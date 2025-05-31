@@ -34,19 +34,19 @@ def define_resnet_linear_layer(model):
 def define_efficientnet_last_layer(model):
   config = Config.get_config()
   # Define last linear layer
-  num_ftrs = model.classifier[1].in_features  # Get number of features before the last layer
+  num_ftrs = model.classifier[1].in_features
   if config['task'] == 'binary-class':
-    model.classifier[1] = nn.Linear(num_ftrs, 1) # Replace the last layer for binary classification
+    model.classifier[1] = nn.Linear(num_ftrs, 1)
   else:
-    model.classifier[1] = nn.Linear(num_ftrs, config['n_classes']) # Replace the last layer for multi-class classification  
+    model.classifier[1] = nn.Linear(num_ftrs, config['n_classes'])
   return model
 
 def define_densenet_last_layer(model):
   config = Config.get_config()
   # Define last linear layer
-  num_ftrs = model.classifier.in_features  # Get number of features before the last layer
+  num_ftrs = model.classifier.in_features
   if config['task'] == 'binary-class':
-    model.classifier = nn.Linear(num_ftrs, 1) # Replace the last layer for binary classification
+    model.classifier = nn.Linear(num_ftrs, 1)
   else:
-    model.classifier = nn.Linear(num_ftrs, config['n_classes']) # Replace the last layer for multi-class classification  
+    model.classifier = nn.Linear(num_ftrs, config['n_classes'])
   return model

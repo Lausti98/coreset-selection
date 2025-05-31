@@ -21,8 +21,6 @@ def train(model, trainloader, val_loader, optimizer, criterion, num_epochs):
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
-        correct = 0
-        total = 0
 
         for inputs, labels in trainloader:
             inputs, labels = inputs.to(device), labels.to(device)

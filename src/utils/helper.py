@@ -19,7 +19,6 @@ def get_base_path():
 
 
 def save_result(config, train_losses, validation_losses, validation_accuracies, test_loss, test_auc, test_accuracy, selection_method=None, fraction=None, iteration = None):
-  # config = Config.get_config()
   result_dict = locals().copy()
   result_dict.pop('config')
   if config['outdir'] is None:
@@ -29,9 +28,9 @@ def save_result(config, train_losses, validation_losses, validation_accuracies, 
   result_path = get_base_path() + result_dir
   filepath = result_path + f'/results_{config["data_flag"]}{"_"+selection_method if selection_method is not None else ""}{"_"+fraction if fraction is not None else ""}.json'
   try:
-    os.listdir(result_path)  # List files in the directory
+    os.listdir(result_path)
   except FileNotFoundError:
-    os.makedirs(result_path)  # Create the directory if it doesn't exist
+    os.makedirs(result_path)
 
   if iteration is not None:
     if iteration == 0:
@@ -49,7 +48,6 @@ def save_result(config, train_losses, validation_losses, validation_accuracies, 
 
 
 def load_checkpoint(config, checkpoint_dir, init_frac = 0.1, init_iteration = 0, max_iteration = 3):
-  # config = Config.get_config()
   if config['outdir'] is not None:
     checkpoint_dir = config['outdir']
   checkpoint_path = get_base_path() + checkpoint_dir
@@ -63,7 +61,6 @@ def load_checkpoint(config, checkpoint_dir, init_frac = 0.1, init_iteration = 0,
   for frac, indices in selected_indices_dict.items():
     checkpoint_fp = checkpoint_path + f'/results_{data_flag}_{config["selection_method"]}_{frac}.json'
     if os.path.exists(checkpoint_fp):
-      print(f'Found checkpoint {checkpoint_fp}')
       with open(checkpoint_fp, 'r') as file:
         checkpoint = json.load(file)
         checkpoint_completed_iter = int(list(checkpoint.keys())[-1])
@@ -82,15 +79,13 @@ def load_checkpoint(config, checkpoint_dir, init_frac = 0.1, init_iteration = 0,
   return init_frac, init_iteration, remaining
 
 def save_coreset(config, indices : list, selection_name):
-#  result_dict = {}
-#  result_dict[selection_name] = indices
   result_dir = 'coresets'
   result_path = get_base_path() + f'/{result_dir}'
   data_flag = config['data_flag']
   try:
-    os.listdir(result_path)  # List files in the directory
+    os.listdir(result_path)
   except FileNotFoundError:
-    os.makedirs(result_path)  # Create the directory if it doesn't exist
+    os.makedirs(result_path)
 
   with open(result_path + f'/indices_{data_flag}_{selection_name}.json', 'w') as file:
     json.dump(indices, file)
@@ -100,9 +95,9 @@ def save_scores(config, selection_name, scores):
   result_path = get_base_path() + f'/{score_dir}'
   scores = [float(s) for s in scores]
   try:
-    os.listdir(result_path)  # List files in the directory
+    os.listdir(result_path)
   except FileNotFoundError:
-    os.makedirs(result_path)  # Create the directory if it doesn't exist
+    os.makedirs(result_path)
   
   out = {'scores': scores}
   with open(result_path + f'/{config["data_flag"]}_{selection_name}.json', 'w') as file:

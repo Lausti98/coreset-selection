@@ -24,7 +24,6 @@ def extract_1percent_dataset(fp):
 
 if __name__ == '__main__':
   coreset_fnames = os.listdir(f'{get_base_path()}/coresets/')
-  print(coreset_fnames)
   for fname in coreset_fnames:
     if ('clustering' in fname):
       continue

@@ -1,27 +1,15 @@
+import sys
 
 import torch
-# import pytorch_influence_functions as ptif
-# from torchvision.models import resnet18, ResNet18_Weights
-from torchvision.models import get_model, get_weight
-from torchvision.transforms import transforms
-import medmnist
-# from medmnist import BreastMNIST
-# from medmnist import Evaluator
-from medmnist.evaluator import getACC, getAUC
-from medmnist import INFO
 import torch.utils.data as data
 import torch.nn as nn
 import numpy as np
 
-import sys
-
 from src.utils.config import Config
-from src.model.evaluation import evaluate, evaluation_func
 from src.model.training import train
 from src.model.loader import get_my_model
 from src.dataset.loader import get_my_dataloaders, load_dataset
 from src.utils.helper import save_coreset
-
 
 
 def pretrain(indices=None, fraction=None, iterations=1):
@@ -29,7 +17,7 @@ def pretrain(indices=None, fraction=None, iterations=1):
   batch_size = config['batch_size']
   task = config['task']
   train_data, validation_data, test_data = load_dataset()
-  trainloader, validationloader, testloader = get_my_dataloaders(train_data, validation_data, test_data)
+  trainloader, validationloader, _ = get_my_dataloaders(train_data, validation_data, test_data)
   train_data_permutation = torch.randperm(len(train_data))
   batch_sampler = data.BatchSampler(train_data_permutation, batch_size=batch_size, drop_last=False)
   trainset_permutation_inds = list(batch_sampler)
@@ -51,10 +39,9 @@ def pretrain(indices=None, fraction=None, iterations=1):
   return model, optimizer, criterion, trainset_permutation_inds
 
 
-
 def grand(model, optimizer, criterion, dataset, train_idx, budget: int, index=None):
   """
-  Source: https://github.com/PatrickZH/DeepCore/blob/main/deepcore/methods/herding.py
+  Source: https://github.com/PatrickZH/DeepCore/blob/main/deepcore/methods/grand.py
   """
   config = Config.get_config()
   batch_size = config['batch_size']
@@ -92,33 +79,29 @@ def grand(model, optimizer, criterion, dataset, train_idx, budget: int, index=No
                                       batch_num, num_class, 1).repeat(1, 1, embedding_dim)).
                                       view(batch_num, -1)], dim=1), dim=1, p=2)
 
-
   norm_mean = torch.mean(norm_matrix, dim=1).cpu().detach().numpy()
   top_examples = train_idx_flat[np.argsort(norm_mean)][::-1][:budget]
 
   return top_examples
 
-def sample(model, optimizer, criterion, dataset, train_idx, n_samples=None, fraction=None):
-  print(fraction)
 
+def sample(model, optimizer, criterion, dataset, train_idx, n_samples=None, fraction=None):
   if fraction is not None:
     n_samples = int(len(dataset) * fraction)
 
   indices = grand(model, optimizer, criterion, dataset, train_idx, n_samples)
   return [int(idx) for idx in indices]
-  # indices = torch.randperm(len(dataset)).numpy()[:n_samples]
-  # data.Subset(dataset, indices)
-
-  # return [int(idx) for idx in indices]
 
 
 def main():
   config = Config.get_config()
   selection_method = config['selection_method']
-  train_data, val_data, test_data = load_dataset()
+  train_data, _, _ = load_dataset()
   assert torch.cuda.is_available() == True, "No GPUS allocated to run-time. Exiting.." ## Sometimes Slurm doesn't provide GPU
   res_indices = {}
-  fracions = [0.1, 0.2, 0.4, 0.6, 0.8]
+  fracions = [0.01, 0.1, 0.2, 0.4, 0.6, 0.8]
+  if 'tissue' in config['data_flag']:
+    fracions = [0.001, 0.005, 0.01, 0.1, 0.2, 0.4, 0.6, 0.8]
   model, optimizer, criterion, train_idx = pretrain()
   for frac in fracions:
     res_indices[frac] = sample(model, optimizer, criterion, train_data, train_idx, fraction=frac)

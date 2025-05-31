@@ -1,26 +1,14 @@
-import torch
-# import pytorch_influence_functions as ptif
-# from torchvision.models import resnet18, ResNet18_Weights
-from torchvision.models import get_model, get_weight
-from torchvision.transforms import transforms
-import medmnist
-# from medmnist import BreastMNIST
-# from medmnist import Evaluator
-from medmnist.evaluator import getACC, getAUC
-from medmnist import INFO
-import torch.utils.data as data
-import torch.nn as nn
-import numpy as np
 import sys
 
+import torch
+import torch.nn as nn
+import numpy as np
+
 from src.utils.config import Config
-from src.model.evaluation import evaluate, evaluation_func
 from src.model.training import train
 from src.model.loader import get_my_model
 from src.dataset.loader import get_my_dataloaders, load_dataset
 from src.utils.helper import save_coreset
-
-"""# Sampling"""
 
 def euclidean_dist(x, y):
     m, n = x.size(0), y.size(0)
@@ -49,12 +37,13 @@ def pretrain(indices=None, fraction=None, iterations=1):
   else:
       criterion = nn.CrossEntropyLoss()
 
-  model, training_losses, training_accuracies, validation_losses, validation_accuracies = train(model, trainloader, validationloader, optimizer, criterion, num_epochs)
+  model, _, _, _, _ = train(model, trainloader, validationloader, optimizer, criterion, num_epochs)
   return model
 
 
 def create_matrix(model):
   """
+    Source: https://github.com/PatrickZH/DeepCore/blob/main/deepcore/methods/herding.py
     Find the feature embeddings of the model, and create a matrix of the embeddings.
     :return:
     feature matrix
@@ -65,7 +54,7 @@ def create_matrix(model):
   model.eval()
 
   train_data, validation_data, test_data = load_dataset()
-  trainloader, validationloader, testloader = get_my_dataloaders(train_data, validation_data, test_data)
+  trainloader, _, _ = get_my_dataloaders(train_data, validation_data, test_data)
   feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
   feature_matrix = torch.zeros([len(train_data), model.fc.in_features], requires_grad=False).to(device)
   with torch.no_grad():
@@ -104,24 +93,24 @@ def herding(matrix, budget: int, index=None):
       index = indices
   return index[select_result]
 
+
 def sample(dataset, model, n_samples=None, fraction=None):
-  print(fraction)
   if fraction is not None:
     n_samples = int(len(dataset) * fraction)
   feature_matrix = create_matrix(model)
   indices = herding(feature_matrix, n_samples)
-  return [int(idx) for idx in indices]
-  # indices = torch.randperm(len(dataset)).numpy()[:n_samples]
-  # data.Subset(dataset, indices)
 
-  # return [int(idx) for idx in indices]
+  return [int(idx) for idx in indices]
+
 
 def main():
   config = Config.get_config()
-  train_data, val_data, test_data = load_dataset()
+  train_data, _, _ = load_dataset()
   assert torch.cuda.is_available() == True, "No GPUS allocated to run-time. Exiting.." ## Sometimes Slurm doesn't provide GPU
   res_indices = {}
-  fracions = [0.1, 0.2, 0.4, 0.6, 0.8]
+  fracions = [0.01, 0.1, 0.2, 0.4, 0.6, 0.8]
+  if 'tissue' in config['data_flag']:
+     fracions = [0.001, 0.005, 0.01, 0.1, 0.2, 0.4, 0.6, 0.8]
   model = pretrain()
   for frac in fracions:
     res_indices[frac] = sample(train_data, model, fraction=frac)
